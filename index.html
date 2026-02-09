@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🥘 我们的私家小食堂</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-orange-50 font-sans text-gray-800">
+    <div id="app">
+        <header class="p-6 bg-white shadow-sm flex justify-between items-center sticky top-0 z-10">
+            <h1 class="text-xl font-bold text-orange-600">🥘 我们的私家小食堂</h1>
+            <button @click="isAdmin = !isAdmin" class="text-xs text-gray-400 border px-2 py-1 rounded">
+                {{ isAdmin ? '切换点菜' : '主厨管理' }}
+            </button>
+        </header>
+
+        <main v-if="!isAdmin" class="p-4 space-y-6 pb-24">
+            <div class="bg-white p-4 rounded-2xl shadow-inner italic text-orange-400 text-sm">
+                “今天想吃点什么？主厨已经准备好接受投喂指令啦~”
+            </div>
+
+            <div class="grid grid-cols-1 gap-4">
+                <div v-for="dish in dishes" :key="dish.id" 
+                    class="bg-white rounded-2xl p-3 shadow-md flex items-center space-x-4 border-2 border-transparent active:border-orange-300 transition-all">
+                    <div class="w-20 h-20 bg-orange-100 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center text-3xl">
+                        {{ dish.emoji }}
+                    </div>
+                    <div class="flex-grow">
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-bold text-lg">{{ dish.name }}</h3>
+                            <span v-if="dish.tag" class="text-[10px] px-2 py-0.5 bg-red-100 text-red-500 rounded-full">{{ dish.tag }}</span>
+                        </div>
+                        <p class="text-gray-400 text-xs mt-1">{{ dish.desc }}</p>
+                        <button @click="addToCart(dish)" class="mt-2 bg-orange-500 text-white px-4 py-1 rounded-full text-sm active:scale-95">
+                            加入订单
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 border-t border-dashed border-orange-200 pt-6 text-center">
+                <p class="text-xs text-gray-400 mb-4">✨ 专属隐藏服务 ✨</p>
+                <div class="flex justify-center gap-4">
+                    <button @click="addToCart({name: '🎁 爱的亲亲', id: 999})" class="bg-pink-100 text-pink-500 p-3 rounded-xl text-xs italic">亲亲主厨</button>
+                    <button @click="addToCart({name: '🧼 帮刷碗券', id: 888})" class="bg-blue-100 text-blue-500 p-3 rounded-xl text-xs italic">主动刷碗</button>
+                </div>
+            </div>
+        </main>
+
+        <main v-else class="p-4 space-y-4">
+            <h2 class="font-bold text-lg flex items-center gap-2">👨‍🍳 待处理订单 <span class="bg-orange-500 text-white text-xs px-2 rounded-full">{{ orders.length }}</span></h2>
+            <div v-if="orders.length === 0" class="text-center py-20 text-gray-400">暂无新订单</div>
+            <div v-for="(order, index) in orders" :key="index" class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-orange-500 flex justify-between items-center">
+                <div>
+                    <div class="text-[10px] text-gray-400">{{ order.time }}</div>
+                    <ul class="mt-1">
+                        <li v-for="item in order.items" class="text-lg font-bold">• {{ item.name }}</li>
+                    </ul>
+                </div>
+                <button @click="finishOrder(index)" class="bg-green-500 text-white px-4 py-2 rounded-lg text-sm">做好了</button>
+            </div>
+        </main>
+
+        <div v-if="!isAdmin && cart.length > 0" class="fixed bottom-6 left-4 right-4 bg-gray-900/90 backdrop-blur text-white p-4 rounded-2xl shadow-2xl flex justify-between items-center">
+            <div class="truncate mr-4">
+                <span class="font-bold text-orange-400">已点:</span> {{ cart.map(i => i.name).join(', ') }}
+            </div>
+            <button @click="submitOrder" class="bg-orange-500 px-6 py-2 rounded-xl font-bold flex-shrink-0">传达心意</button>
+        </div>
+
+        <div v-if="showReviewModal" class="fixed inset-0 bg-black/60 flex items-center justify-center p-6 z-50">
+            <div class="bg-white rounded-3xl p-6 w-full max-w-sm">
+                <h3 class="text-center font-bold text-xl mb-4">饭后评价 ⭐️</h3>
+                <textarea v-model="tempReview" class="w-full bg-gray-50 border-0 p-3 rounded-xl mb-4 focus:ring-2 focus:ring-orange-500" placeholder="评价一下大厨的手艺吧..."></textarea>
+                <button @click="saveReview" class="w-full bg-orange-500 text-white py-3 rounded-xl font-bold">提交</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue
+        createApp({
+            setup() {
+                const isAdmin = ref(false)
+                const cart = ref([])
+                const orders = ref([])
+                const reviews = ref([])
+                const showReviewModal = ref(false)
+                const tempReview = ref('')
+
+                const dishes = [
+                    { id: 1, name: '招牌红烧肉', desc: '软糯入味，肥而不腻', tag: '招牌', emoji: '🥓' },
+                    { id: 2, name: '超级麻婆豆腐', desc: '下饭神器，麻辣鲜香', tag: '中辣', emoji: '🍲' },
+                    { id: 3, name: '清炒时蔬', desc: '今天也要多吃蔬菜', tag: '清淡', emoji: '🥬' }
+                ]
+
+                onMounted(() => {
+                    orders.value = JSON.parse(localStorage.getItem('family-orders') || '[]')
+                    reviews.value = JSON.parse(localStorage.getItem('family-reviews') || '[]')
+                })
+
+                const addToCart = (dish) => { cart.value.push(dish) }
+
+                const submitOrder = () => {
+                    orders.value.push({ items: [...cart.value], time: new Date().toLocaleTimeString() })
+                    localStorage.setItem('family-orders', JSON.stringify(orders.value))
+                    cart.value = []
+                    alert('下单成功！主厨正在赶来的路上 👨‍🍳')
+                }
+
+                const finishOrder = (index) => {
+                    orders.value.splice(index, 1)
+                    localStorage.setItem('family-orders', JSON.stringify(orders.value))
+                    showReviewModal.value = true
+                }
+
+                const saveReview = () => {
+                    if (tempReview.value) {
+                        reviews.value.push(tempReview.value)
+                        localStorage.setItem('family-reviews', JSON.stringify(reviews.value))
+                    }
+                    showReviewModal.value = false
+                    tempReview.value = ''
+                }
+
+                return { isAdmin, dishes, cart, orders, reviews, showReviewModal, tempReview, addToCart, submitOrder, finishOrder, saveReview }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
